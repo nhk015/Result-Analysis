@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMSIT&M Result Analysis & Faculty Performance Dashboard</title>
+  <meta name="description" content="Comprehensive examination result analysis dashboard for BMS Institute of Technology & Management. Computes subject pass percentage, faculty-wise performance metrics, topper lists, and official VTU reports.">
+  
+  <!-- CDNs for XLSX and Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  
+  <!-- Bundled docx.js (native Word export without network dependency) -->
+  <script src="js/docx.bundle.js"></script>
+  
+  <!-- Embedded Branding Assets (Logos & Campus Hero) -->
+  <script src="js/assets.js"></script>
+  
+  <!-- Sample Demo Data Generator -->
+  <script src="js/sample-data.js"></script>
+  
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ================= WELCOME SCREEN ================= -->
+<div id="welcomeOverlay">
+  <div id="welcomeBg"></div>
+  <div class="welcome-card">
+    <div class="welcome-logo-box">
+      <img id="welcomeLogo" alt="BMS Institute of Technology & Management">
+    </div>
+    <h1>Result Analysis & Faculty Performance Dashboard</h1>
+    <p>Comprehensive subject pass percentage, faculty performance analytics, category-wise breakdown, and official VTU/BMSIT report generation.</p>
+    
+    <div class="welcome-features">
+      <span class="welcome-pill">📊 Subject Pass %</span>
+      <span class="welcome-pill">👤 Faculty Performance</span>
+      <span class="welcome-pill">🏆 Topper Ranking</span>
+      <span class="welcome-pill">📝 Word & PDF Export</span>
+    </div>
+
+    <div class="welcome-actions">
+      <button class="btn gold" id="welcomeDemoBtn">⚡ Load Sample VTU Result Sheet</button>
+      <button class="btn ghost" id="enterAppBtn">Upload My Own Sheet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MASTHEAD ================= -->
+<header class="masthead">
+  <div class="masthead-bg" id="mastheadBg"></div>
+  <div class="masthead-overlay"></div>
+  <div class="masthead-content">
+    <div class="masthead-text">
+      <div class="eyebrow">
+        <span>🏛️ Examination Cell</span>
+        <span>·</span>
+        <span>BMSIT&M Result Analytics</span>
+      </div>
+      <h1>Subject-wise & Faculty Performance Dashboard</h1>
+      <p>Analyze pass percentages, assign faculty members to courses, evaluate teaching performance, and generate official accreditation reports.</p>
+    </div>
+    <div class="masthead-badge">
+      <div class="badge-icon">✓</div>
+      <div>
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--gold-400); font-weight:700;">Accreditation Ready</div>
+        <div style="font-size:13.5px; font-weight:600; color:#fff;">VTU & NBA Standards</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ================= UPLOAD ZONE ================= -->
+  <div class="upload-zone" id="dropZone">
+    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+      <path d="M12 16V4M12 4l-4 4M12 4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h3>Drop result sheet here, or click to browse</h3>
+    <p>Accepts standard VTU / Autonomous result export sheets in .xls, .xlsx, or .csv format</p>
+    
+    <div class="upload-actions">
+      <button class="btn" onclick="document.getElementById('fileInput').click()">Browse Result File</button>
+      <button class="btn gold" id="loadDemoBtn">⚡ Load Sample VTU Result Sheet</button>
+    </div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx,.csv">
+    <div id="fileMeta"></div>
+  </div>
+
+  <!-- ================= PREVIOUSLY SAVED REPORTS (LANDING) ================= -->
+  <div class="panel no-print" id="landingSavedReports" style="margin-top:18px;">
+    <div class="panel-header">
+      <h3>📁 Previously Saved Reports</h3>
+    </div>
+    <div id="savedReportsListOuter" style="margin-bottom:12px;"></div>
+    <div style="border-top:1px solid var(--slate-200); padding-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <label style="font-size:13px; color:var(--muted); font-weight:600;">Or import a snapshot file from your computer (.rsnap.json):</label>
+      <input type="file" id="importSnapshotOuter" accept=".json,.rsnap.json" style="font-size:12.5px;">
+    </div>
+  </div>
+
+  <!-- ================= RESULTS VIEW ================= -->
+  <div id="results" style="display:none;">
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs no-print">
+      <button class="tab-btn active" data-tab="dashboard">
+        <span>📊 Subject Dashboard</span>
+      </button>
+      <button class="tab-btn" data-tab="faculty">
+        <span>👤 Faculty Performance</span>
+        <span class="tab-badge" id="facultyTabBadge">New</span>
+      </button>
+      <button class="tab-btn" data-tab="report">
+        <span>📄 Official Report Format</span>
+      </button>
+      <button class="tab-btn" data-tab="scorecard">
+        <span>🎓 Student Scorecards</span>
+      </button>
+    </nav>
+
+    <!-- Section & Scope Filter Panel -->
+    <div class="panel no-print" id="sectionPanel">
+      <div class="panel-header">
+        <div>
+          <h3>🏫 Section & USN Scope Filter</h3>
+          <p class="panel-sub">Filter results for a single section, create combined sections, or set custom USN ranges.</p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="sectionSelect" style="font-size:13px; padding:7px 12px; border:1px solid var(--slate-300); border-radius:var(--radius-sm); font-weight:600; color:var(--navy-900);">
+            <option value="-1">All students</option>
+          </select>
+          <button class="btn ghost sm danger" id="deleteSectionBtn" style="display:none;">Delete Section</button>
+        </div>
+      </div>
+
+      <!-- Excel File Upload Provision for Sections -->
+      <div class="category-upload no-print" style="margin-bottom:14px; background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:12px 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+          <div style="flex:1; min-width:280px;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+              <span style="font-size:14px;">📁</span>
+              <span style="font-size:13px; font-weight:700; color:var(--navy-900);">Upload Section Excel / CSV File</span>
+            </div>
+            <div style="font-size:12px; color:var(--slate-600); line-height:1.5;">
+              Upload an Excel spreadsheet (<code>.xlsx</code>, <code>.xls</code>, <code>.csv</code>) to configure sections:
+              <br><b>• Master Section File:</b> Sheet with <code>USN</code> and <code>Section</code> columns (automatically creates and maps all sections, computing contiguous USN ranges).
+              <br><b>• Section USN List:</b> Sheet with a <code>USN</code> column used for a section alongside the given USN range.
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn sm" onclick="document.getElementById('sectionListFile').click()">Browse Section File</button>
+            <input type="file" id="sectionListFile" accept=".csv,.xls,.xlsx" style="display:none;">
+            <button class="btn ghost sm" onclick="downloadSectionTemplate()">Download Template</button>
+          </div>
+        </div>
+        <div id="sectionListStatus" style="font-size:12px; color:var(--emerald-600); font-weight:600; margin-top:8px;"></div>
+      </div>
+
+      <!-- Combine Sections Area -->
+      <div class="no-print" id="combineSectionsPanel" style="display:none; flex-direction:column; background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:14px;">
+        <span style="font-size:12.5px; color:var(--slate-600); margin-bottom:8px; font-weight:500;">
+          Create a consolidated view across multiple sections (e.g., A + B Combined):
+        </span>
+        <div id="combineCheckboxes" style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px;"></div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <input type="text" id="combineLabel" placeholder="e.g. A + B Combined" style="padding:6px 10px; border:1px solid var(--slate-300); border-radius:var(--radius-sm); font-size:13px; min-width:200px;">
+          <button class="btn ghost sm" id="combineSectionsBtn">+ Create Combined Section</button>
+        </div>
+      </div>
+
+      <!-- Add New Section Form (Accordion / Collapsible) -->
+      <details id="configureSectionDetails" style="margin-top:8px;" open>
+        <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--navy-800); outline:none; user-select:none;">
+          + Configure New Section by USN Range & Excel Upload
+        </summary>
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--slate-200);">
+          <div class="section-form">
+            <div class="section-form-row">
+              <div><label>Section Label</label><input type="text" id="secLabel" placeholder="e.g. A Section"></div>
+              <div><label>Semester</label><input type="text" id="secSemester" placeholder="e.g. 6"></div>
+            </div>
+            <div>
+              <label>USN Ranges (one per line, format: <code>from - to</code>)</label>
+              <textarea id="secRanges" rows="2" placeholder="1BY22IS001 - 1BY22IS030&#10;1BY23IS401 - 1BY23IS405"></textarea>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:6px;">
+                <label style="margin:0;">Custom USNs (comma or newline separated, or load from Excel file below)</label>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <button type="button" class="btn ghost sm" style="padding:3px 8px; font-size:11.5px;" onclick="document.getElementById('sectionFormExcelFile').click()">📎 Load USNs from Excel File</button>
+                  <input type="file" id="sectionFormExcelFile" accept=".csv,.xls,.xlsx" style="display:none;">
+                </div>
+              </div>
+              <textarea id="secCustom" rows="2" placeholder="1BY21IS045, 1BY20IS012"></textarea>
+              <div id="sectionFormExcelStatus" style="font-size:11.5px; color:var(--emerald-600); margin-top:3px; font-weight:600;"></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <button class="btn sm" id="saveSectionBtn">Save New Section</button>
+              <span style="font-size:12px; color:var(--muted);">Students matching either the given USN range OR the uploaded/custom USNs will be included.</span>
+            </div>
+          </div>
+        </div>
+      </details>
+      <div id="sectionStatus" style="font-size:12px; color:var(--muted); margin-top:6px;"></div>
+    </div>
+
+    <!-- Revaluation Panel -->
+    <details class="panel no-print" id="revalPanel" style="margin-bottom:20px;">
+      <summary style="cursor:pointer; font-size:14.5px; font-weight:700; color:var(--navy-900); display:flex; align-items:center; gap:8px;">
+        <span>🔄 Apply Revaluation Update</span>
+      </summary>
+      <div style="margin-top:12px;">
+        <p class="panel-sub" style="margin-bottom:12px;">
+          Upload a revaluation result sheet (same export format). Matching students are updated in-place by USN + Course Code, and all pass %, toppers, and faculty performance recalculate automatically.
+        </p>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <input type="file" id="revalFile" accept=".xls,.xlsx,.csv" style="font-size:12.5px;">
+          <button class="btn ghost sm" id="markAfterRevalBtn">Set Report Title to "After Revaluation"</button>
+        </div>
+        <div id="revalStatus" style="font-size:12px; color:var(--muted); margin-top:8px;"></div>
+        <div id="revalLogWrap" style="display:none; margin-top:14px;" class="table-responsive">
+          <table class="rpt" id="revalLogTable"></table>
+        </div>
+      </div>
+    </details>
+
+    <!-- ================= TAB 1: DASHBOARD ================= -->
+    <div class="tab-view active" id="tab-dashboard">
+      <div class="toolbar">
+        <div>
+          <h2 id="titleLine" style="margin:0; font-family:var(--font-display); font-size:20px; font-weight:700;">Result Summary</h2>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn gold" onclick="openFacultyModal()">👤 Manage Faculty Allocations</button>
+          <button class="btn ghost" id="downloadCsv">Export Table (CSV)</button>
+          <button class="btn" id="resetBtn">Load Another File</button>
+        </div>
+      </div>
+
+      <!-- Summary Metrics Cards -->
+      <div class="cards" id="summaryCards"></div>
+
+      <!-- Subject Pass Chart -->
+      <div class="panel" id="chartPanel">
+        <div class="panel-header">
+          <div>
+            <h3>📈 Subject Pass Percentage</h3>
+            <p class="panel-sub">Visual pass percentage distribution across all credit courses.</p>
+          </div>
+        </div>
+        <div style="position:relative; height:320px; width:100%;">
+          <canvas id="passChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Grade Classification Settings -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>⚙️ Grade Classification Settings</h3>
+            <p class="panel-sub">Configure which grade codes count as Fail, Excluded (Absent/Withdrawn), or Pass.</p>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table id="gradeAssignTable">
+            <thead>
+              <tr>
+                <th style="text-align:left;">Grade</th>
+                <th>Fail</th>
+                <th>Exclude</th>
+                <th>Pass</th>
+              </tr>
+            </thead>
+            <tbody id="gradeAssignBody"></tbody>
+          </table>
+        </div>
+        <input type="hidden" id="failGradesInput" value="F, DX, X, I">
+        <input type="hidden" id="excludeGradesInput" value="AB, W">
+        <input type="hidden" id="withheldGradesInput" value="W">
+        <div class="rpt-note" id="gradeLegend" style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- Subject-wise Result Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>📚 Subject-wise Pass Percentage</h3>
+            <p class="panel-sub">Detailed breakdown of total appeared, passed, failed, and pass percentage for every course.</p>
+          </div>
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="subjectSearchInput" placeholder="Filter by code, title, or faculty…">
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table" id="resultTable">
+            <thead>
+              <tr>
+                <th data-key="code">Course Code <span class="arrow"></span></th>
+                <th data-key="title">Course Title <span class="arrow"></span></th>
+                <th data-key="faculty">Staff / Faculty Handling <span class="arrow"></span></th>
+                <th data-key="total" style="text-align:right;">Registered <span class="arrow"></span></th>
+                <th data-key="appeared" style="text-align:right;">Appeared <span class="arrow"></span></th>
+                <th data-key="passed" style="text-align:right;">Passed <span class="arrow"></span></th>
+                <th data-key="failed" style="text-align:right;">Failed <span class="arrow"></span></th>
+                <th data-key="pct">Pass % <span class="arrow"></span></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 2: FACULTY PERFORMANCE ANALYSIS ================= -->
+    <div class="tab-view" id="tab-faculty">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0; font-family:var(--font-display); font-size:20px; font-weight:700;">Faculty-wise Performance Analysis</h2>
+          <p class="panel-sub" style="margin:2px 0 0;">Evaluates individual faculty pass percentages, grade distribution, and topper performance for accreditation audits.</p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn gold" onclick="openFacultyModal()">👤 Assign / Edit Faculty</button>
+          <button class="btn ghost" onclick="document.getElementById('facultyFileInput').click()">Upload Faculty CSV</button>
+          <input type="file" id="facultyFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
+          <span id="facultyFileStatus" style="font-size:12px; color:var(--muted);"></span>
+          <button class="btn ghost" onclick="downloadFacultyTemplate()">Download Template</button>
+          <button class="btn" id="exportFacultyCsv">Export Faculty CSV</button>
+        </div>
+      </div>
+
+      <!-- Faculty Summary Cards -->
+      <div class="cards" id="facultySummaryCards"></div>
+
+      <!-- Faculty Comparison Bar Chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>📊 Faculty Pass Percentage Comparison</h3>
+            <p class="panel-sub">Side-by-side performance comparison of faculty members across their assigned courses.</p>
+          </div>
+        </div>
+        <div style="position:relative; height:320px; width:100%;">
+          <canvas id="facultyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Faculty Performance Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>👨‍🏫 Faculty Course Allocation & Result Breakdown</h3>
+            <p class="panel-sub">Complete audit record mapping each faculty member to their handled subjects, pass percentage, and distinction rates.</p>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table" id="facultyTable">
+            <thead>
+              <tr>
+                <th style="width:40px; text-align:center;">Sl.No</th>
+                <th data-key="name">Faculty Name <span class="arrow"></span></th>
+                <th data-key="subjectCodes">Subject(s) Handled <span class="arrow"></span></th>
+                <th data-key="appeared" style="text-align:right;">Appeared <span class="arrow"></span></th>
+                <th data-key="passed" style="text-align:right;">Passed <span class="arrow"></span></th>
+                <th data-key="failed" style="text-align:right;">Failed <span class="arrow"></span></th>
+                <th data-key="pct">Pass % <span class="arrow"></span></th>
+                <th style="text-align:center;">Grades (Dist / 1st / Pass)</th>
+                <th>Subject Topper</th>
+              </tr>
+            </thead>
+            <tbody id="facultyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 3: OFFICIAL REPORT FORMAT ================= -->
+    <div class="tab-view" id="tab-report">
+      <div class="toolbar no-print">
+        <div>
+          <h2 style="margin:0; font-family:var(--font-display); font-size:20px; font-weight:700;">Official Result Analysis Format</h2>
+          <p class="panel-sub" style="margin:2px 0 0;">Standard BMSIT & VTU accreditation document with all official sections, watermarks, and signature blocks.</p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn ghost" id="printBtn">🖨️ Print / Save as PDF</button>
+          <button class="btn" id="exportWordBtn">📄 Export as Word (.docx)</button>
+          <span id="wordExportStatus" style="font-size:12px; color:var(--muted);"></span>
+        </div>
+      </div>
+
+      <!-- Report Metadata Form -->
+      <div class="report-meta no-print">
+        <div><label>Institution Name</label><input id="metaInst" value="BMS Institute of Technology & Management"></div>
+        <div><label>Department</label><input id="metaDept" value="Department of Information Science & Engineering"></div>
+        <div><label>Report Title</label><input id="metaTitle" value="Result Analysis (Before Revaluation)"></div>
+        <div><label>Semester / Sections</label><input id="metaSem" value="Semester – 6 (A & B Sections)"></div>
+        <div><label>Academic Year</label><select id="metaAcademicYear"></select></div>
+      </div>
+
+      <!-- Category & Quota Upload Section -->
+      <div class="category-upload no-print" style="margin-bottom:14px; background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:12px 14px;">
+        <span style="font-size:12.5px; color:var(--slate-600); font-weight:500;">
+          Optional: Upload a USN → Admission Category mapping (CSV with columns <code>USN, Category</code>) to enable Category-wise & Quota analysis:
+        </span>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+          <input type="file" id="categoryFile" accept=".csv,.xls,.xlsx" style="font-size:12px;">
+          <span id="categoryStatus" style="font-size:12px; color:var(--muted);"></span>
+        </div>
+      </div>
+
+      <details class="no-print" id="quotaGroupBox" style="margin-bottom:16px; background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:10px 14px;">
+        <summary style="font-size:12.5px; font-weight:600; color:var(--navy-800); cursor:pointer;">
+          ⚙️ Configure Quota Grouping Rules
+        </summary>
+        <div style="margin-top:10px;">
+          <textarea id="quotaGroupInput" rows="4" style="width:100%; font-family:var(--font-mono); font-size:12px; padding:8px; border:1px solid var(--slate-300); border-radius:var(--radius-sm);">CET+SNQ = CET, CET-SNQ, CET-SC/ST, CET-CAT1
+Comed-K = COMEDK, COMED-K, COMED K
+MNG+PIO+JK = MGMT, MANAGEMENT, PIO, PMSSS
+DIP = D-CET, DCET-SC/ST</textarea>
+          <div style="margin-top:8px;">
+            <button class="btn ghost sm" id="recalcQuotaBtn">Recalculate Quota Groups</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Saved Reports Panel inside Report Tab -->
+      <div class="panel no-print" id="savedReportsPanel">
+        <div class="panel-header">
+          <h3>💾 Saved Report Snapshots</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn sm" id="saveReportBtn">Save This Report</button>
+            <button class="btn ghost sm" id="exportSnapshotBtn">Download Snapshot (.json)</button>
+          </div>
+        </div>
+        <div id="savedReportsList"></div>
+        <div style="border-top:1px solid var(--slate-200); padding-top:10px; margin-top:10px; display:flex; align-items:center; gap:8px;">
+          <label style="font-size:12.5px; color:var(--muted); font-weight:600;">Import snapshot from disk:</label>
+          <input type="file" id="importSnapshotInner" accept=".json,.rsnap.json" style="font-size:12px;">
+        </div>
+      </div>
+
+      <!-- THE PRINTABLE REPORT DOCUMENT -->
+      <div id="reportPage">
+        <img id="reportWatermark" alt="Watermark">
+        
+        <div class="rpt-head">
+          <img class="logo-img" id="rLogo" alt="BMSIT Logo">
+          <div class="inst" id="rInst">BMS Institute of Technology & Management</div>
+          <div class="dept" id="rDept">Department of Information Science & Engineering</div>
+          <div class="sub" id="rTitle" style="font-weight:700; color:var(--navy-900);">Result Analysis</div>
+          <div class="sub" id="rAcademicYear"></div>
+          <div class="sub" id="rSem"></div>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="rpt-section-title">1. Overall Result Analysis</div>
+        <div class="table-responsive"><table class="rpt" id="overallTable"></table></div>
+        <div class="rpt-note">Batch is inferred from USN (e.g. 1BY22IS027 → 2022 batch). Withdrawn auto-counts students with W grade.</div>
+
+        <!-- Section 2 -->
+        <div class="rpt-section-title">2. Subject-wise Result Analysis</div>
+        <div class="rpt-note">Staff handling is populated from faculty allocations and remains editable. Pass % = Passed ÷ Appeared.</div>
+        <div class="table-responsive"><table class="rpt" id="subjectTable"></table></div>
+
+        <!-- Section 3: Faculty-wise Result Analysis (New!) -->
+        <div id="reportFacultySection">
+          <div class="rpt-section-title">3. Faculty-wise Result Analysis</div>
+          <div class="rpt-note">Evaluation of subject-wise academic pass performance and distinction tallies per faculty member.</div>
+          <div class="table-responsive"><table class="rpt" id="reportFacultyTable"></table></div>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="rpt-section-title">4. Topper's List</div>
+        <div class="rpt-note">Students ranked by highest SGPA and aggregate marks across credit-bearing courses.</div>
+        <div class="table-responsive"><table class="rpt" id="topperTable"></table></div>
+
+        <!-- Section 5: Quota / Category-wise Result (when category mapping is loaded) -->
+        <div id="quotaSection" style="display:none;">
+          <div class="rpt-section-title">5. Overall Category wise result</div>
+          <div class="table-responsive"><table class="rpt" id="quotaTable"></table></div>
+        </div>
+
+        <div id="categorySection" style="display:none;">
+          <div class="rpt-section-title">6. Category-wise Analysis</div>
+          <div class="table-responsive"><table class="rpt" id="categoryTable"></table></div>
+        </div>
+
+        <!-- Section 7: List of Failed Students -->
+        <div class="rpt-section-title">7. List of Failed Students</div>
+        <div class="rpt-note">Lists each student with backlogs and the respective failed subject codes.</div>
+        <div class="table-responsive"><table class="rpt" id="failedListTable"></table></div>
+
+        <!-- Section 6: Subject-wise Failed Students -->
+        <div class="rpt-section-title">6. Subject-wise List of Failed Students</div>
+        <div class="rpt-note">Failed students grouped by course code and subject title for remedial class planning.</div>
+        <div class="table-responsive"><table class="rpt" id="subjectFailTable"></table></div>
+
+        <!-- Section 7: Classification of Results -->
+        <div class="rpt-section-title">7. Classification of Results</div>
+        <div class="rpt-note">Per the BMSIT grading system: Percentage (M) = CGPA × 10. FCD: M ≥ 70%, FC: 60% ≤ M &lt; 70%, SC: 50% ≤ M &lt; 60%, Pass Class: 40% ≤ M &lt; 50%.</div>
+        <div class="table-responsive"><table class="rpt" id="classificationTable"></table></div>
+
+        <!-- Section 8: Special Grades List -->
+        <div class="rpt-section-title">8. Students with Absent (AB), Illness (I), Withdrawn (W), or Detained (DX) Grades</div>
+        <div class="table-responsive"><table class="rpt" id="specialGradesTable"></table></div>
+
+        <!-- Signatures Block -->
+        <div class="sig-block">
+          <div class="sig-col">
+            <input type="text" class="sig-name" data-role="classTeacher" placeholder="Class Teacher Name">
+            <div class="sig-line-wrap"><div class="sig-role">Signature of Class Teacher</div></div>
+          </div>
+          <div class="sig-col">
+            <input type="text" class="sig-name" data-role="coordinator" placeholder="Coordinator Name">
+            <div class="sig-line-wrap"><div class="sig-role">Result Analysis Coordinator</div></div>
+          </div>
+          <div class="sig-col">
+            <input type="text" class="sig-name" data-role="divisionHead" placeholder="Division Head Name">
+            <div class="sig-line-wrap"><div class="sig-role">Division Head</div></div>
+          </div>
+          <div class="sig-col">
+            <input type="text" class="sig-name" data-role="hod" placeholder="HoD Name">
+            <div class="sig-line-wrap"><div class="sig-role">HoD</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 4: STUDENT SCORECARDS ================= -->
+    <div class="tab-view" id="tab-scorecard">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0; font-family:var(--font-display); font-size:20px; font-weight:700;">Student Scorecards & Individual Results</h2>
+          <p class="panel-sub" style="margin:2px 0 0;">Search any student by USN or Name to inspect their complete semester marksheet, subject grades, and faculty instructors.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="position:relative; max-width:440px; margin-bottom:16px;">
+          <div class="search-box" style="max-width:100%;">
+            <span>🔍</span>
+            <input type="text" id="studentSearchInput" placeholder="Type Student USN or Name (e.g. 1BY22IS001)…">
+          </div>
+          <div id="studentSearchResults" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid var(--slate-200); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); z-index:100; max-height:260px; overflow-y:auto;"></div>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:0;">
+          Tip: You can also click on any student's name in the Topper's List or Failed Students table to open their scorecard.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="empty-state" id="emptyHint">
+    <div style="font-size:36px; margin-bottom:12px;">📑</div>
+    <div style="font-size:16px; font-weight:600; color:var(--navy-900); margin-bottom:6px;">No result sheet loaded yet</div>
+    <div>Upload a VTU / BMSIT semester result export file above, or click <b>"Load Sample VTU Result Sheet"</b> to test immediately.</div>
+  </div>
+
+</main>
+
+<!-- ================= MODAL: FACULTY ALLOCATION MANAGER ================= -->
+<div class="modal-overlay" id="facultyModal" style="display:none;">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h3>👨‍🏫 Faculty & Subject Allocation Manager</h3>
+        <p class="modal-sub">Assign faculty names for each subject handled. Faculty names are reflected across the dashboard, faculty analytics, and official reports.</p>
+      </div>
+      <button class="btn ghost sm" onclick="closeFacultyModal()">✕ Close</button>
+    </div>
+
+    <div class="table-responsive" style="max-height:420px; overflow-y:auto; margin-bottom:16px;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:110px;">Subject Code</th>
+            <th>Subject Title</th>
+            <th>Assigned Faculty Member</th>
+          </tr>
+        </thead>
+        <tbody id="facultyAllocationBody"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div>
+        <button class="btn ghost sm" onclick="document.getElementById('modalFacultyFileInput').click()">Upload Faculty CSV</button>
+        <input type="file" id="modalFacultyFileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="if(this.files.length) handleFacultyFileUpload(this.files[0])">
+        <button class="btn ghost sm" onclick="downloadFacultyTemplate()">Download Template</button>
+      </div>
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn ghost" onclick="closeFacultyModal()">Cancel</button>
+        <button class="btn gold" onclick="saveFacultyAllocations()">✓ Save Allocations</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: INDIVIDUAL STUDENT SCORECARD ================= -->
+<div class="modal-overlay" id="studentModal" style="display:none;">
+  <div class="modal-box" style="max-width:760px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; border-bottom:1px solid var(--slate-200); padding-bottom:14px;">
+      <div>
+        <h3 id="scStudentName" style="margin:0 0 4px; font-size:20px;">Student Name</h3>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <span id="scStudentUsn" style="font-family:var(--font-mono); font-weight:700; color:var(--navy-800);">1BY22IS000</span>
+          <span id="scStudentStatus"></span>
+        </div>
+      </div>
+      <button class="btn ghost sm" onclick="closeStudentModal()">✕ Close</button>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+      <div style="background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:10px 14px;">
+        <div style="font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:700;">Semester SGPA</div>
+        <div id="scStudentSgpa" style="font-size:22px; font-weight:700; color:var(--navy-900); font-family:var(--font-mono);">—</div>
+      </div>
+      <div style="background:var(--slate-50); border:1px solid var(--slate-200); border-radius:var(--radius-sm); padding:10px 14px;">
+        <div style="font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:700;">Cumulative CGPA</div>
+        <div id="scStudentCgpa" style="font-size:22px; font-weight:700; color:var(--gold); font-family:var(--font-mono);">—</div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="max-height:360px; overflow-y:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Course Code</th>
+            <th>Course Title</th>
+            <th>Faculty Handling</th>
+            <th style="text-align:right;">Total Marks</th>
+            <th style="text-align:right;">Credits</th>
+            <th style="text-align:center;">Grade</th>
+            <th style="text-align:center;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="scSubjectBody"></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeStudentModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DOWNLOAD TOAST ================= -->
+<div id="downloadToast" style="display:none;"></div>
+
+<!-- Datalist for Faculty Suggestions -->
+<datalist id="facultySuggestions"></datalist>
+
+<!-- Main Application Script -->
+<script src="js/app.js"></script>
+
+</body>
+</html>
